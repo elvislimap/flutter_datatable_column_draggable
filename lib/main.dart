@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,6 +33,10 @@ class _MyHomePageState extends State<MyHomePage> {
   late List<DataColumn> _columns;
   late List<DataRow> _rows;
   final List<GlobalKey> _keys = <GlobalKey>[];
+  final doubleTapChecker = _DoubleTapChecker<List<ObjectGrid>>();
+  late int _sortColumnIndex = 0;
+  late IconData _sortIconAscDesc = FontAwesomeIcons.arrowDownShortWide;
+  late bool _sortAsc = true;
 
   @override
   void initState() {
@@ -56,16 +61,16 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     final currentBox = key.currentContext?.findRenderObject() as RenderBox;
-    final valueCurrrentColumn = currentBox.localToGlobal(Offset.zero).dx;
-    final valueNewPositionColumn = listXPositionColumns.reduce(
-        (num1, num2) =>
-            (num1 - details.offset.dx).abs() < (num2 - details.offset.dx).abs()
-                ? num1
-                : num2);
+    final positionCurrrentColumn = currentBox.localToGlobal(Offset.zero).dx;
+    final newPositionColumn = listXPositionColumns.reduce((num1, num2) =>
+        (num1 - details.offset.dx).abs() < (num2 - details.offset.dx).abs()
+            ? num1
+            : num2);
 
-    final indexCurrentColumn = listXPositionColumns.indexOf(valueCurrrentColumn);
+    final indexCurrentColumn =
+        listXPositionColumns.indexOf(positionCurrrentColumn);
     final indexNewPositionColumn =
-        listXPositionColumns.indexOf(valueNewPositionColumn);
+        listXPositionColumns.indexOf(newPositionColumn);
 
     for (var propColumns in _propsInColumns) {
       propColumns.insert(
@@ -87,6 +92,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Column(
           children: [
             DataTable(
+              showCheckboxColumn: false,
               columns: _columns,
               rows: _rows,
             ),
@@ -123,18 +129,45 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             child: Container(
               color: Colors.transparent,
-              child: Text(
-                prop.name,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.black),
+              child: Row(
+                children: [
+                  Text(
+                    prop.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black,
+                    ),
+                  ),
+                  Visibility(
+                    visible: _sortColumnIndex == _keys.indexOf(key),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: Icon(
+                        _sortIconAscDesc,
+                        size: 12,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             onDragEnd: (details) {
               onDragEndColumnDataTable(details, key);
             },
           ),
+          onSort: (int index, bool asc) {
+            setState(() {
+              _sortAsc = index == _sortColumnIndex ? !_sortAsc : true;
+
+              _sortColumnIndex = index;
+              _sortIconAscDesc = _sortAsc
+                  ? FontAwesomeIcons.arrowDownShortWide
+                  : FontAwesomeIcons.arrowUpWideShort;
+              setColumnsAndRows();
+            });
+          },
         ),
       );
     }
@@ -162,6 +195,13 @@ class _MyHomePageState extends State<MyHomePage> {
               return null;
             }),
             cells: _getCells(propsColumn),
+            onSelectChanged: ((selected) {
+              if (!doubleTapChecker.isDoubleTap(propsColumn)) {
+                return;
+              }
+
+              print("Duplo clique");
+            }),
           ),
         )
         .toList();
@@ -173,10 +213,13 @@ class _MyHomePageState extends State<MyHomePage> {
     for (var prop in propsColumn) {
       dataCells.add(
         DataCell(
-          TextField(
-            controller: TextEditingController(
-              text: prop.value,
-            ),
+          // TextField(
+          //   controller: TextEditingController(
+          //     text: prop.value,
+          //   ),
+          // ),
+          Text(
+            prop.value,
           ),
         ),
       );
@@ -234,4 +277,22 @@ class ObjectGrid {
   String value;
 
   ObjectGrid(this.name, this.value);
+}
+
+class _DoubleTapChecker<T> {
+  T? _lastSelectedItem;
+  DateTime _lastTimestamp = DateTime.now();
+
+  bool isDoubleTap(T item) {
+    if (_lastSelectedItem == null || _lastSelectedItem != item) {
+      _lastSelectedItem = item;
+      _lastTimestamp = DateTime.now();
+      return false;
+    }
+
+    final currentTimestamp = DateTime.now();
+    final duration = currentTimestamp.difference(_lastTimestamp).inMilliseconds;
+    _lastTimestamp = DateTime.now();
+    return duration < 400;
+  }
 }
